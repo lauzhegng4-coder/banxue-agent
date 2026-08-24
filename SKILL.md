@@ -1,121 +1,116 @@
 ---
 name: feishu-companion-agent
-description: 用 Hermes Agent + 飞书自建应用搭建「知识库伴学/答疑机器人」并接入飞书私聊。当用户要做飞书机器人、AI 伴学助手、知识库问答 bot、或要求把本地 Agent 接入飞书时使用。覆盖知识库结构设计、伴学提示词、飞书凭证配置、gateway 启动、DM 配对审批全流程。
+description: 把一堆资料库变成「会教的 AI 伴学智能体」的完整方法论：知识库分层设计、伴学 SOP（定档→路线图→陪跑→复盘）、学员画像机制、资料采集喂养，以及用 Hermes + 飞书让它跑在学员手机里。当用户要做知识库伴学 bot、AI 答疑助手、基于自有资料的教学智能体时使用。
 ---
 
-# 飞书伴学 Agent 搭建（Hermes + 飞书 CLI）
+# 资料库伴学智能体：从一堆文档到会教的 Agent
 
-把本地知识库变成飞书里的伴学/答疑机器人：学员私聊即可提问，Agent 基于知识库作答并维护学员画像。
+核心命题：**你有一堆学习资料（课程讲义/群精华/逐字稿），怎么把它变成一个懂学员、会教人的 AI**。飞书/微信只是通道，本文的重心是伴学结构的设计。
 
-## 架构
-
-```
-飞书私聊 → Hermes gateway（WebSocket 长连接，免公网 IP）→ 伴学引擎（AGENTS.md SOP + 画像）
-                                                        → knowledge/（结构化知识库）
-```
-
-## 前置条件
-
-- 已安装 Hermes Agent（`~/.hermes/hermes-agent`），`hermes --version` 可用
-- 模型已配置（`~/.hermes/config.yaml` 的 `model:` 段）
-- 飞书自建应用：开放平台创建 → 添加「机器人」能力 → 事件订阅选**长连接模式** → 拿到 `App ID` / `App Secret`
-
-## 搭建步骤
-
-### 1. 建 Agent 目录结构
+## 一个伴学智能体的四层核心资产
 
 ```
-<项目>/_agent/
-├── AGENTS.md          # 伴学人设 + SOP（核心）
-├── knowledge/         # 知识库
-│   ├── KNOWLEDGE.md   # 总索引：资料地图 + 框架摘要 + 重资产登记（唯一入口）
-│   ├── K1-xxx.md      # 原始资料（md 最佳，按 K1/K2…编号）
-│   └── ...
-├── profiles/          # 学员画像（一人一文件，飞书用户自动隔离）
-│   └── <用户>.md
-└── README.md          # 交付说明 + 验收步骤
+学员（飞书私聊/任意 IM）
+  ↓
+① 知识库 —— 资料的结构化（决定 Agent 知道什么）
+② 伴学 SOP —— 教学流程（决定 Agent 怎么教）
+③ 学员画像 —— 一人一档（决定 Agent 对谁因材施教）
+④ 喂养通道 —— 新资料持续入库（决定 Agent 会不会过时）
 ```
 
-**KNOWLEDGE.md 索引表三列**：编号 / 文件 / 什么时候读。再加一节「课程核心框架摘要」——先给结论级骨架，细节回原文，这是省 token 的关键。
+## ① 知识库：三层结构（最重要的设计）
 
-### 2. 写 AGENTS.md（伴学 SOP 四阶段）
+```
+knowledge/
+├── KNOWLEDGE.md    # 总索引：资料地图（哪份资料管什么问题）+ 核心框架摘要
+├── K1-xxx.md       # 原始资料，按 K1/K2/K3… 编号
+├── K2-xxx.md
+└── ...
+```
+
+**设计要点**：
+1. **总索引是唯一入口**：表格三列——编号/文件/「什么时候读」。Agent 先查索引定位，再读原文，不盲读全部（省 token、答案准）。
+2. **框架摘要层**：在 KNOWLEDGE.md 里为每份资料写 3-5 行「结论级骨架」（如课程的核心模型、步骤框架）。80% 的问题摘要就够，20% 才回原文。
+3. **编号即引用体系**：回答必须标「依据 K2 第 3 节」，可追溯、可信、也逼着 Agent 真读资料。
+4. **重资产登记不入库**：PPT/视频/音频登个索引（标题/路径/说明）就行，Agent 按需提示人工处理。
+5. **边界写进提示词**：资料没有的说「没覆盖」再给通用建议；付费内容讲拆解不给全文复述。
+
+## ② 伴学 SOP：让 Agent 是老师不是问答机
+
+写在 AGENTS.md（Agent 的工作准则文件）：
 
 ```markdown
-# 角色：XXX 伴学官
 ## 每次对话固定动作
-1. 先读画像 profiles/<用户>.md；无画像则 3-5 问建档写回
-2. 答疑先查 knowledge/KNOWLEDGE.md 定位再读原文；输出「结论→依据（哪份资料哪节）→落地动作」
-3. 伴学不止答疑：发现认知偏差用课程心法点破，一次一个
-4. 对话结束前更新画像
-## 伴学 SOP：定档（新手/入门/进阶）→ 路线图 → 陪跑（一次一步，做完验收再给下一步）→ 复盘（对照交付标准）
-## 边界：不虚构（资料没有就说明）；付费内容不复述全文
+1. 先读画像 profiles/<用户>.md；无画像 → 3-5 问建档（水平/目标/时间/卡点）写回
+2. 答疑：查 KNOWLEDGE.md 定位 → 读原文 → 输出「结论→依据（K几哪节）→落地动作」
+3. 伴学不止答疑：发现认知偏差，用课程里的心法点破，一次只点一个
+4. 对话结束更新画像（进展/弱项）
+
+## 四阶段
+定档（新手/入门/进阶）→ 路线图（每档对应的资料与顺序）
+→ 陪跑（一次只给下一步，做完验收再给下一步）→ 复盘（对照交付标准）
 ```
 
-### 3. 写入飞书凭证
+**关键差异**：问答机给答案就结束；伴学官给答案+下一步动作+验收标准，且记住你上次卡在哪。
 
-```bash
-~/.hermes/hermes-agent/venv/bin/python -c "
-import sys; sys.path.insert(0, '/Users/<user>/.hermes/hermes-agent')
-from hermes_cli.config import save_env_value
-save_env_value('FEISHU_APP_ID', '<app_id>')
-save_env_value('FEISHU_APP_SECRET', '<app_secret>')
-save_env_value('FEISHU_DOMAIN', 'feishu')
-save_env_value('FEISHU_CONNECTION_MODE', 'websocket')
-"
+## ③ 学员画像：因材施教的载体
+
+```
+profiles/<用户>.md
+# 结构：基本信息 / AI 水平定档 / 当前目标 / 卡点待跟进 / 伴学记录（带日期）
 ```
 
-存入 `~/.hermes/.env`。注意：必须用 hermes 自带 venv 的 python（依赖 yaml），系统 python3 会报 ModuleNotFoundError。
+- 首次对话 3-5 问建档，之后每次对话读开头、结束更新
+- 敏感信息控制：画像里写什么由你定义，可加「禁止记录 XX 类信息」硬规则
+- 多用户天然隔离：IM 侧每个用户独立会话，画像一人一文件互不串
 
-### 4. 指定 gateway 工作目录
+## ④ 喂养通道：知识库怎么保持新鲜
 
-`~/.hermes/config.yaml` → `terminal.cwd: /绝对路径/_agent`。gateway 会话的 Agent 以该目录为工作区，自动读到 AGENTS.md 和知识库。
+| 资料形态 | 入库方式 |
+|---|---|
+| md/docx/pdf | 直接拷入 knowledge/，编 K 号 |
+| 飞书 wiki/文档 | API 全文抓取（见下） |
+| 网页/专栏 | WebFetch 抓取转 md |
+| 视频/录音 | 先转逐字稿再入库 |
 
-### 5. 启动与配对
-
-```bash
-hermes gateway run          # 前台跑；日志见 ~/.hermes/logs/gateway.log
-# 看到 "[Feishu] Connected in websocket mode" 即成功
-
-# 学员首次私聊发消息 → 机器人回 8 位配对码 → 管理员批准：
-hermes pairing list                          # 查看待批
-hermes pairing approve feishu <CODE>         # 批准
-# 批准后该飞书用户进入 ~/.hermes/platforms/pairing/feishu-approved.json，永久生效
-```
-
-常驻：用户本人在 Terminal 跑 `hermes gateway install`（launchd 服务，沙箱内不可用）。
-
-### 6. 验收
-
-飞书私聊发真实业务问题 → 收到「结论+出处+动作」三段式回答 = 通过。
-
-## 放量给多人
-
-- 飞书层：应用「可用范围」圈定人员（跨组织需建团队拉人）
-- Hermes 层：每人首次私聊出配对码，管理员逐个 approve
-- 会话隔离：config.yaml `group_sessions_per_user: true`（默认已开），群聊每人独立上下文
-
-## 附：飞书 wiki 文档全文抓取（入库利器）
-
-应用凭证可直读飞书文档全文（wiki 公开网页只有部分内容）：
+**飞书文档 API 抓取**（应用凭证即可，网页只能看半篇的问题也能解决）：
 
 ```bash
-# 1. 取 token
 TOKEN=$(curl -s -X POST "https://open.feishu.cn/open-apis/auth/v3/tenant_access_token/internal" \
   -H "Content-Type: application/json" \
   -d '{"app_id":"<id>","app_secret":"<secret>"}' | python3 -c "import json,sys;print(json.load(sys.stdin)['tenant_access_token'])")
-# 2. wiki 链接尾缀 → obj_token
 OBJ=$(curl -s "https://open.feishu.cn/open-apis/wiki/v2/spaces/get_node?token=<wiki_token>" \
   -H "Authorization: Bearer $TOKEN" | python3 -c "import json,sys;print(json.load(sys.stdin)['data']['node']['obj_token'])")
-# 3. 读全文
 curl -s "https://open.feishu.cn/open-apis/docx/v1/documents/$OBJ/raw_content" -H "Authorization: Bearer $TOKEN"
 ```
+
+新资料入库后**必须同步更新 KNOWLEDGE.md 索引**，否则等于没入。
+
+## 通道落地：Hermes + 飞书（简述）
+
+知识库和 SOP 就绪后，选个能读本地文件的 Agent 框架跑起来。以 Hermes 为例：
+
+1. `_agent/` 目录放 AGENTS.md + knowledge/ + profiles/（gateway 的 terminal.cwd 指向它）
+2. 飞书自建应用（机器人能力 + 长连接模式）凭证写入 `~/.hermes/.env`
+3. `hermes gateway run` → 学员私聊 bot → 首次出配对码 → `hermes pairing approve feishu <码>` 批准
+4. 常驻：`hermes gateway install`（launchd 服务，开机自启）
+
+**多人放量**：飞书应用可用范围圈人 + 每人配对审批一次；会话按用户隔离，画像自动独立。
 
 ## 踩坑记录（实测）
 
 | 坑 | 解法 |
 |---|---|
-| nohup 后台跑 gateway 被回收 | 用工具级后台任务（run_in_background）或 `hermes gateway install` 常驻 |
-| 系统 python3 写 env 报 no yaml | 用 `~/.hermes/hermes-agent/venv/bin/python` |
-| pairing approve 报 not found | 码已被消费/过期，`hermes pairing list` 看实际状态；部分流程自动批准 |
-| 首条消息 unauthorized | 正常：配对码流程走完才授权 |
-| 网页抓飞书 wiki 只有半篇 | 走上面的 API 抓全文 |
+| Agent 不按 SOP 走 | 规则写成加粗「硬规则」放 AGENTS.md 顶部；行为约束类要求同时改 SOP 里的对应动作，不能只改一处 |
+| 答案不引出处 | 提示词写死「结论→依据→动作」三段式 + 编号引用体系 |
+| 后台进程被回收 | 用 launchd 服务（gateway install），别依赖会话级后台任务 |
+| 系统 python 写 env 报错 | 用 `~/.hermes/hermes-agent/venv/bin/python` |
+| git push HTTP2 framing 报错 | `git config http.version HTTP/1.1` |
+| 飞书 wiki 网页只抓到半篇 | 走 API raw_content 拿全文 |
+
+## 适用场景
+
+- 付费社群/训练营的知识库伴学 bot（本文原型：航海家俱乐部）
+- 企业内部培训资料答疑助手
+- 个人学习资料库的「第二大脑问答」
+- 任何「资料多、学员水平参差、需要因材施教」的场景
