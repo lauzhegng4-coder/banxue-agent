@@ -1,4 +1,4 @@
-# feishu-companion-agent
+# banxue-agent
 
 把一堆资料库变成「会教的 AI 伴学智能体」的完整方法论。
 

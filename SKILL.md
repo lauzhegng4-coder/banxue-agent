@@ -1,5 +1,5 @@
 ---
-name: feishu-companion-agent
+name: banxue-agent
 description: 航海家伴学 Agent：帮学员学习理解航海家（生财有术高阶会员社区）课程知识。当学员提问课程内容、要伴学答疑、说想学叁斤/楚川/包子的课，或用户要搭建知识库伴学 bot 时使用。激活后第一条回复必须直接输出开场话术。
 ---
 

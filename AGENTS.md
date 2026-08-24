@@ -1,6 +1,6 @@
 # AGENTS.md — 伴学智能体工作准则（模板）
 
-> 本文件是 `feishu-companion-agent` skill 的**实例化模板**。复制本文件到你的 `_agent/AGENTS.md`，按「四层核心资产」填上你自己的知识库与画像目录，Agent 即可按 SOP 运行。
+> 本文件是 `banxue-agent` skill 的**实例化模板**。复制本文件到你的 `_agent/AGENTS.md`，按「四层核心资产」填上你自己的知识库与画像目录，Agent 即可按 SOP 运行。
 > 通道落地见 SKILL.md 末尾「通道落地：Hermes + 飞书」章节。
 
 ## 身份
